@@ -1,7 +1,8 @@
-# Overlay used by ArgoCD. CI overwrites repository and tag after a successful
-# image scan and Docker Hub push. Local kind still uses values.yaml defaults.
+# Overlay used by ArgoCD. CI overwrites tag after a successful image scan
+# and Docker Hub push. Local kind still uses values.yaml defaults.
+# Hub: https://hub.docker.com/r/eliranb1978/eliran-apps-images
 image:
-  repository: docker.io/CHANGE_ME/sample-nodejs
+  repository: docker.io/eliranb1978/eliran-apps-images
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 

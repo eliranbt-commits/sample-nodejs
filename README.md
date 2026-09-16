@@ -80,7 +80,7 @@ Unfixed OS findings are ignored (`ignore-unfixed: true`) so the gate tracks issu
 | `DOCKERHUB_USERNAME` | Private Hub namespace |
 | `DOCKERHUB_TOKEN` | Hub access token with push access |
 
-Create a **private** Docker Hub repository named `sample-nodejs`. In GitHub: **Settings → Secrets and variables → Actions**. Also set **Settings → Actions → General → Workflow permissions → Read and write** so the GitOps commit can push.
+Create a Docker Hub repository [eliranb1978/eliran-apps-images](https://hub.docker.com/r/eliranb1978/eliran-apps-images). In GitHub: **Settings → Secrets and variables → Actions**, add `DOCKERHUB_USERNAME` (`eliranb1978`) and `DOCKERHUB_TOKEN`. Also set **Settings → Actions → General → Workflow permissions → Read and write** so the GitOps commit can push.
 
 If the GitHub repo itself is private, give ArgoCD a PAT (repo read) as a repository credential.
 
@@ -122,7 +122,7 @@ bash scripts/bootstrap-kind-gitops.sh
 
 That script creates namespaces, the `dockerhub` pull secret, installs Argo CD, and applies [`argocd/application.yaml`](argocd/application.yaml).
 
-Push a green `main` build **before** (or immediately after) the first Argo sync so `values-gitops.yaml` points at a real Hub tag, not `CHANGE_ME`.
+Push a green `main` build so `values-gitops.yaml` is pinned to a real tag on `eliranb1978/eliran-apps-images`.
 
 ```bash
 kubectl -n argocd port-forward svc/argocd-server 8081:80
@@ -146,7 +146,7 @@ Take these for submission:
 2. `kubectl get pods` — `sample-nodejs` Running `1/1`.
 3. ArgoCD UI: Application `Synced` / `Healthy`.
 4. Browser or curl of `/my-app` through Ingress (or port-forward).
-5. Docker Hub showing the private `sample-nodejs` tags.
+5. Docker Hub showing tags on [eliranb1978/eliran-apps-images](https://hub.docker.com/r/eliranb1978/eliran-apps-images).
 
 ## Layout
 

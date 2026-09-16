@@ -112,7 +112,7 @@ jobs:
         id: image
         run: |
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "name=${{ secrets.DOCKERHUB_USERNAME }}/sample-nodejs" >> "$GITHUB_OUTPUT"
+            echo "name=eliranb1978/eliran-apps-images" >> "$GITHUB_OUTPUT"
           else
             echo "name=sample-nodejs" >> "$GITHUB_OUTPUT"
           fi
@@ -177,7 +177,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          bash scripts/apply-version.sh "${VERSION}" "docker.io/${DOCKERHUB_USERNAME}/sample-nodejs"
+          bash scripts/apply-version.sh "${VERSION}" "docker.io/eliranb1978/eliran-apps-images"
           git add helm/sample-nodejs/Chart.yaml helm/sample-nodejs/values-gitops.yaml web-app/package.json
           git commit -m "chore(release): ${VERSION} [skip ci]"
           git tag "v${VERSION}"
