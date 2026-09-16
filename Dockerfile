@@ -16,8 +16,10 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
-# Run as a non-root user (security best practice - never run containers as root)
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# node:22-alpine lags Alpine security packages (e.g. OpenSSL CVE-2026-45447).
+# Upgrade OS packages before dropping root so Trivy HIGH findings are patched.
+RUN apk upgrade --no-cache \
+  && addgroup -S appgroup && adduser -S appuser -G appgroup
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
