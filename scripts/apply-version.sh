@@ -11,7 +11,7 @@ values="$root/helm/sample-nodejs/values-gitops.yaml"
 pkg="$root/web-app/package.json"
 
 chart_version="$(sed -n 's/^version: //p' "$chart" | head -n1 | tr -d '"')"
-next_chart="$("$root/scripts/next-version.sh" "$chart_version" patch)"
+next_chart="$(bash "$root/scripts/next-version.sh" "$chart_version" patch)"
 
 sed -i "s/^version: .*/version: ${next_chart}/" "$chart"
 sed -i "s/^appVersion: .*/appVersion: \"${version}\"/" "$chart"

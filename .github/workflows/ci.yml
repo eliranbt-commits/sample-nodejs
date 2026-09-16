@@ -184,6 +184,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          chmod +x scripts/*.sh
           bash scripts/apply-version.sh "${VERSION}" "docker.io/eliranb1978/eliran-apps-images"
           git add helm/sample-nodejs/Chart.yaml helm/sample-nodejs/values-gitops.yaml web-app/package.json
           git commit -m "chore(release): ${VERSION} [skip ci]"
