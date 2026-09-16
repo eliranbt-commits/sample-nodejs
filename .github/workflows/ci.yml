@@ -82,6 +82,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install ksh
+        run: sudo apt-get update && sudo apt-get install -y ksh
+
       - name: Compute image version
         id: ver
         env:
@@ -94,7 +97,7 @@ jobs:
             bump=patch
             printf '%s\n' "$COMMIT_MSG" | grep -q 'bump:major' && bump=major
             printf '%s\n' "$COMMIT_MSG" | grep -q 'bump:minor' && bump=minor
-            version="$(bash scripts/next-version.sh "$current" "$bump")"
+            version="$(ksh scripts/next-version.sh "$current" "$bump")"
           else
             version="pr-${GITHUB_SHA::7}"
           fi
@@ -183,6 +186,7 @@ jobs:
       - name: Update Helm GitOps pin and tag release
         run: |
           set -euxo pipefail
+          sudo apt-get update && sudo apt-get install -y ksh
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           chmod +x scripts/*.sh

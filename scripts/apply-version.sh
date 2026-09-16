@@ -15,7 +15,7 @@ values="$root/helm/sample-nodejs/values-gitops.yaml"
 pkg="$root/web-app/package.json"
 
 chart_version="$(sed -n 's/^version: //p' "$chart" | head -n1 | tr -d '"\r' | tr -d ' ')"
-next_chart="$(bash "$root/scripts/next-version.sh" "$chart_version" patch)"
+next_chart="$(ksh "$root/scripts/next-version.sh" "$chart_version" patch)"
 
 # Use | — the image repository contains slashes and would break s///.
 sed -i "s|^version: .*|version: ${next_chart}|" "$chart"
