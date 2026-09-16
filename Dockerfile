@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM node:22.1.0-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ RUN npm ci --omit=dev
 COPY web-app/app.js ./
 
 # ---- Runtime stage ----
-FROM node:22.1.0-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
