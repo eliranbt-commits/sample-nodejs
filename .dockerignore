@@ -1,0 +1,10 @@
+.git
+.github
+.cursor
+argocd
+helm
+scripts
+node_modules
+*.md
+.gitignore
+nodePort.yaml

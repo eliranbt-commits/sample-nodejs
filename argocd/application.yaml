@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-nodejs
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/eliranbt-commits/sample-nodejs
+    targetRevision: main
+    path: helm/sample-nodejs
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-gitops.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-nodejs
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

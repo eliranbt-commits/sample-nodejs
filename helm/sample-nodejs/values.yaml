@@ -1,0 +1,73 @@
+replicaCount: 1
+
+image:
+  repository: sample-nodejs
+  tag: local
+  pullPolicy: Never
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: false
+
+podSecurityContext: {}
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: sample-nodejs.local
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+config:
+  PORT: "8080"
+
+secret:
+  enabled: false
+  data: {}
+
+probes:
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  liveness:
+    path: /live
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

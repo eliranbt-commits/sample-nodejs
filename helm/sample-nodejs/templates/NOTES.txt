@@ -1,0 +1,10 @@
+1. Watch the pod:
+   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+2. Port-forward the Service:
+   kubectl port-forward svc/{{ include "sample-nodejs.fullname" . }} 8080:{{ .Values.service.port }}
+
+3. Curl:
+   curl http://localhost:8080/my-app
+   curl http://localhost:8080/ready
+   curl http://localhost:8080/live

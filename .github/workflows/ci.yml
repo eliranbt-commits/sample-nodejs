@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: read
+  security-events: write
+
+jobs:
+  sast:
+    name: SAST and lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.1.0"
+          cache: npm
+          cache-dependency-path: web-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web-app
+        run: npm ci
+
+      - name: npm audit (fail on critical)
+        working-directory: web-app
+        run: npm audit --audit-level=critical
+
+      - name: Semgrep SAST
+        run: |
+          python3 -m pip install --user semgrep
+          export PATH="$HOME/.local/bin:$PATH"
+          semgrep scan \
+            --config p/javascript \
+            --config p/nodejs \
+            --config p/owasp-top-ten \
+            --severity ERROR \
+            --error \
+            --metrics off
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: helm lint ./helm/sample-nodejs -f ./helm/sample-nodejs/values.yaml -f ./helm/sample-nodejs/values-gitops.yaml
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute image version
+        id: ver
+        run: |
+          current="$(sed -n 's/^appVersion: "\(.*\)"/\1/p' helm/sample-nodejs/Chart.yaml)"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            msg="${{ github.event.head_commit.message }}"
+            bump=patch
+            echo "$msg" | grep -q 'bump:major' && bump=major
+            echo "$msg" | grep -q 'bump:minor' && bump=minor
+            version="$(bash scripts/next-version.sh "$current" "$bump")"
+          else
+            version="pr-${GITHUB_SHA::7}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $version (current appVersion: $current)"
+
+  build:
+    name: Build, scan, and push
+    needs: [sast, version]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image name
+        id: image
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "name=${{ secrets.DOCKERHUB_USERNAME }}/sample-nodejs" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=sample-nodejs" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          push: false
+          tags: local-scan:${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy image scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: local-scan:${{ env.VERSION }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+          format: table
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: |
+          docker tag "local-scan:${VERSION}" "${IMAGE_NAME}:${VERSION}"
+          docker tag "local-scan:${VERSION}" "${IMAGE_NAME}:sha-${GITHUB_SHA}"
+          docker push "${IMAGE_NAME}:${VERSION}"
+          docker push "${IMAGE_NAME}:sha-${GITHUB_SHA}"
+
+  gitops:
+    name: Pin image tag for ArgoCD
+    needs: [build, version]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Helm GitOps pin and tag release
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bash scripts/apply-version.sh "${VERSION}" "docker.io/${DOCKERHUB_USERNAME}/sample-nodejs"
+          git add helm/sample-nodejs/Chart.yaml helm/sample-nodejs/values-gitops.yaml web-app/package.json
+          git commit -m "chore(release): ${VERSION} [skip ci]"
+          git tag "v${VERSION}"
+          git push origin "HEAD:main"
+          git push origin "v${VERSION}"
