@@ -5,14 +5,36 @@ set -euo pipefail
 current="${1:?usage: next-version.sh <x.y.z> [patch|minor|major]}"
 bump="${2:-patch}"
 
-if [[ ! "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "invalid version: $current" >&2
-  exit 1
-fi
+case $current in
+  *[!0-9.]*|'')
+    echo "invalid version: $current" >&2
+    exit 1
+    ;;
+  *.*.*.*|*.*.*.*.*)
+    echo "invalid version: $current" >&2
+    exit 1
+    ;;
+  *.*.*)
+    ;;
+  *)
+    echo "invalid version: $current" >&2
+    exit 1
+    ;;
+esac
 
-IFS=. read -r major minor patch <<<"$current"
+major=${current%%.*}
+rest=${current#*.}
+minor=${rest%%.*}
+patch=${rest#*.}
 
-case "$bump" in
+case $major$minor$patch in
+  *[!0-9]*|'')
+    echo "invalid version: $current" >&2
+    exit 1
+    ;;
+esac
+
+case $bump in
   major)
     major=$((major + 1))
     minor=0
