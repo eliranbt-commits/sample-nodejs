@@ -2,5 +2,5 @@ apiVersion: v2
 name: sample-nodejs
 description: Sample Node.js app for Kubernetes (Rafael DevOps task)
 type: application
-version: 0.1.3
-appVersion: "1.0.3"
+version: 0.1.4
+appVersion: "1.0.4"
