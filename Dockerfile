@@ -16,9 +16,6 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
-# node:22-alpine lags Alpine security packages (e.g. OpenSSL CVE-2026-45447).
-# The official image also ships npm/corepack, which Trivy flags (brace-expansion,
-# tar gzip-bomb, etc.). The app only needs `node` at runtime.
 RUN apk upgrade --no-cache \
   && rm -rf \
     /usr/local/lib/node_modules/npm \
