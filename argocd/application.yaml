@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/eliranbt-commits/sample-nodejs
+    repoURL: https://github.com/eliranbt-commits/gitops-sample-nodejs
     targetRevision: main
     path: helm/sample-nodejs
     helm:

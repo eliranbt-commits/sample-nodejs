@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install ArgoCD on the local kind cluster and point it at this repo.
+# Install ArgoCD on the local kind cluster and point it at gitops-sample-nodejs.
 # Requires: kubectl, helm, and (for a private Docker Hub pull) DOCKERHUB_USERNAME + DOCKERHUB_TOKEN.
 set -euo pipefail
 

@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
   security-events: write
 
@@ -77,10 +77,14 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
-      - name: Checkout
+      - name: Checkout app
+        uses: actions/checkout@v5
+
+      - name: Checkout GitOps repo
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          repository: eliranbt-commits/gitops-sample-nodejs
+          path: gitops
 
       - name: Compute image version
         id: ver
@@ -89,7 +93,7 @@ jobs:
           GIT_REF: ${{ github.ref }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          current="$(sed -n 's/^appVersion: "\(.*\)"/\1/p' helm/sample-nodejs/Chart.yaml)"
+          current="$(sed -n 's/^appVersion: "\(.*\)"/\1/p' gitops/helm/sample-nodejs/Chart.yaml)"
           if [ "$EVENT_NAME" = "push" ] && [ "$GIT_REF" = "refs/heads/main" ]; then
             bump=patch
             printf '%s\n' "$COMMIT_MSG" | grep -q 'bump:major' && bump=major
@@ -169,27 +173,35 @@ jobs:
     needs: [build, version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - name: Checkout
+      - name: Checkout app
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          path: app
+
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v5
+        with:
+          repository: eliranbt-commits/gitops-sample-nodejs
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
           persist-credentials: true
 
-      - name: Update Helm GitOps pin and tag release
+      - name: Pin Helm chart and image tag in GitOps repo
+        working-directory: gitops
         run: |
           set -euxo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          chmod +x scripts/*.sh
-          bash scripts/apply-version.sh "${VERSION}" "docker.io/eliranb1978/eliran-apps-images"
-          git add helm/sample-nodejs/Chart.yaml helm/sample-nodejs/values-gitops.yaml web-app/package.json
+          mkdir -p helm/sample-nodejs
+          cp -a ../app/helm/sample-nodejs/. helm/sample-nodejs/
+          chmod +x ../app/scripts/*.sh
+          bash ../app/scripts/apply-version.sh "${VERSION}" "docker.io/eliranb1978/eliran-apps-images" "$GITHUB_WORKSPACE/gitops"
+          git add helm/sample-nodejs
           git diff --cached
-          git commit -m "chore(release): ${VERSION} [skip ci]"
+          git commit -m "chore(release): ${VERSION}"
           git tag "v${VERSION}" || git tag -f "v${VERSION}"
           git push origin HEAD:main
           git push origin "v${VERSION}" --force

@@ -2,7 +2,7 @@
 
 Repository: [https://github.com/eliranbt-commits/sample-nodejs](https://github.com/eliranbt-commits/sample-nodejs)
 
-Small Express app packaged for Kubernetes: multi-stage Dockerfile, Helm chart, GitHub Actions (SAST, Trivy, Docker Hub), and ArgoCD GitOps from this same repo.
+Small Express app packaged for Kubernetes: multi-stage Dockerfile, GitHub Actions (SAST, Trivy, Docker Hub), and ArgoCD GitOps from a **separate** repo: [gitops-sample-nodejs](https://github.com/eliranbt-commits/gitops-sample-nodejs).
 
 ## Why a Deployment (not a StatefulSet)
 
@@ -10,13 +10,16 @@ The app is stateless. It keeps nothing on local disk, has no sticky identity, an
 
 A StatefulSet would be for ordered start/stop, stable network names, or per-pod volume claims (for example a database). None of that applies here.
 
-## Why same-repo GitOps
+## Why two Git repos
 
-ArgoCD watches **this** repository (`helm/sample-nodejs` + `values-gitops.yaml`) instead of a second GitOps repo.
+| Repo | Role |
+| --- | --- |
+| **This repo** (`sample-nodejs`) | App source, Dockerfile, CI (build / scan / push image) |
+| [gitops-sample-nodejs](https://github.com/eliranbt-commits/gitops-sample-nodejs) | Helm chart + image tag. **Argo CD watches this one** |
 
-- One link to submit: chart, pipeline, and desired state live together.
-- CI never runs `kubectl apply`. After a green scan it only commits the new image tag; ArgoCD reconciles the cluster.
-- A split GitOps repo is the better default when many services share one environment. This take-home has a single app, so an extra repo would add ceremony without a clearer security boundary.
+- CI never runs `kubectl apply`. After a green scan it copies the chart and commits the new image tag **into the GitOps repo**; ArgoCD reconciles the cluster.
+- App PRs cannot change what production deploys until CI pins a tag in GitOps.
+- Chart templates still live here under `helm/sample-nodejs/` (local kind + `helm lint`). Each release copies them into GitOps so the two trees do not drift.
 
 ## App
 
@@ -39,7 +42,7 @@ Trunk-based development:
 2. PR pipeline: SAST, Helm lint, Hadolint, Docker build, Trivy. No push, no version bump.
 3. Merge to `main`: patch bump (`1.0.0` → `1.0.1`), unless the commit message contains `bump:minor` or `bump:major`.
 4. Image is scanned; HIGH/CRITICAL findings block the push.
-5. Image is pushed to a **private** Docker Hub repo. Helm GitOps values are committed with `[skip ci]` so the pipeline does not loop. ArgoCD syncs.
+5. Image is pushed to a **private** Docker Hub repo. CI commits the Helm pin to [gitops-sample-nodejs](https://github.com/eliranbt-commits/gitops-sample-nodejs) (not this repo, so no `[skip ci]` loop). ArgoCD syncs.
 
 ```mermaid
 flowchart LR
@@ -51,7 +54,7 @@ flowchart LR
   sastMain --> build[BuildAndPush]
   build --> trivy[TrivyFailOnHigh]
   trivy --> hub[DockerHubPrivate]
-  hub --> gitops[CommitImageTag]
+  hub --> gitops[CommitTagToGitOpsRepo]
   gitops --> argo[ArgoCD]
   argo --> k8s[kindCluster]
 ```
@@ -69,7 +72,7 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 | Repo scan | Trivy filesystem | Fail on unfixed CRITICAL |
 | Image scan | Trivy | Fail on unfixed HIGH/CRITICAL — **blocks deploy/push** |
 | Build / push | Docker Buildx | Private Docker Hub |
-| Deploy | Git commit of image tag | ArgoCD, not kubectl from CI |
+| Deploy | Git commit of image tag in **gitops-sample-nodejs** | ArgoCD, not kubectl from CI |
 
 Unfixed OS findings are ignored (`ignore-unfixed: true`) so the gate tracks issues we can actually patch.
 
@@ -79,14 +82,17 @@ Unfixed OS findings are ignored (`ignore-unfixed: true`) so the gate tracks issu
 | --- | --- |
 | `DOCKERHUB_USERNAME` | Private Hub namespace |
 | `DOCKERHUB_TOKEN` | Hub access token with push access |
+| `GITOPS_TOKEN` | GitHub PAT with **Contents: Read and write** on [gitops-sample-nodejs](https://github.com/eliranbt-commits/gitops-sample-nodejs). Default `GITHUB_TOKEN` cannot push to another repo. |
 
-Create a Docker Hub repository [eliranb1978/eliran-apps-images](https://hub.docker.com/r/eliranb1978/eliran-apps-images). In GitHub: **Settings → Secrets and variables → Actions**, add `DOCKERHUB_USERNAME` (`eliranb1978`) and `DOCKERHUB_TOKEN`. Also set **Settings → Actions → General → Workflow permissions → Read and write** so the GitOps commit can push.
+Create a Docker Hub repository [eliranb1978/eliran-apps-images](https://hub.docker.com/r/eliranb1978/eliran-apps-images). In GitHub: **Settings → Secrets and variables → Actions**, add `DOCKERHUB_USERNAME` (`eliranb1978`), `DOCKERHUB_TOKEN`, and `GITOPS_TOKEN`.
 
-If the GitHub repo itself is private, give ArgoCD a PAT (repo read) as a repository credential.
+Seed the GitOps repo once (chart must exist before the first version job): copy `helm/` from this repo, or push `/home/user/RAFAEL/gitops-sample-nodejs`. If the GitOps repo is private, also give Argo CD a PAT (repo read) as a repository credential.
 
 ## Helm chart
 
-Path: [`helm/sample-nodejs/`](helm/sample-nodejs/)
+Path in **this** repo (local + CI lint): [`helm/sample-nodejs/`](helm/sample-nodejs/)
+
+Path Argo CD uses: [gitops-sample-nodejs `helm/sample-nodejs/`](https://github.com/eliranbt-commits/gitops-sample-nodejs/tree/main/helm/sample-nodejs)
 
 - Deployment, Service, Ingress (`ingressClassName: nginx`)
 - Readiness `/ready` and liveness `/live` with different delay/period
@@ -120,9 +126,13 @@ export DOCKERHUB_TOKEN=your-hub-token
 bash scripts/bootstrap-kind-gitops.sh
 ```
 
-That script creates namespaces, the `dockerhub` pull secret, installs Argo CD, and applies [`argocd/application.yaml`](argocd/application.yaml).
+That script creates namespaces, the `dockerhub` pull secret, installs Argo CD, and applies [`argocd/application.yaml`](argocd/application.yaml) (source = **gitops-sample-nodejs**).
 
-Push a green `main` build so `values-gitops.yaml` is pinned to a real tag on `eliranb1978/eliran-apps-images`.
+Push a green `main` build so GitOps `values-gitops.yaml` is pinned to a real tag on `eliranb1978/eliran-apps-images`. Then re-apply the Application if it still pointed at the old repo:
+
+```bash
+kubectl apply -f argocd/application.yaml
+```
 
 ```bash
 kubectl -n argocd port-forward svc/argocd-server 8081:80
@@ -158,8 +168,8 @@ Take these for submission:
 │   ├── package.json
 │   └── package-lock.json
 ├── .github/workflows/ci.yml
-├── argocd/application.yaml
-├── helm/sample-nodejs/
+├── argocd/application.yaml          # points Argo CD at gitops-sample-nodejs
+├── helm/sample-nodejs/              # chart source; CI copies into GitOps on release
 ├── scripts/
 │   ├── next-version.sh
 │   ├── apply-version.sh
