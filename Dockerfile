@@ -26,11 +26,10 @@ RUN apk upgrade --no-cache \
     /usr/local/bin/npx \
     /usr/local/bin/corepack \
     /usr/local/lib/node_modules/corepack \
-  && addgroup -S appgroup && adduser -S appuser -G appgroup
+  && addgroup -S appgroup && adduser -S appuser -G appgroup \
+  && chown appuser:appgroup /app
 
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/app.js ./app.js
+COPY --from=build --chown=appuser:appgroup /app ./
 
 USER appuser
 
