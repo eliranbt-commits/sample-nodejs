@@ -42,7 +42,7 @@ Trunk-based development:
 2. PR pipeline: SAST, Helm lint, Hadolint, Docker build, Trivy. No push, no version bump.
 3. Merge to `main`: patch bump (`1.0.0` → `1.0.1`), unless the commit message contains `bump:minor` or `bump:major`.
 4. Image is scanned; HIGH/CRITICAL findings block the push.
-5. Image is pushed to a **private** Docker Hub repo. CI commits the Helm pin to [gitops-sample-nodejs](https://github.com/eliranbt-commits/gitops-sample-nodejs) (not this repo, so no `[skip ci]` loop). ArgoCD syncs.
+5. Image is pushed to a **private** Docker Hub repo. CI commits the Helm pin to [gitops-sample-nodejs](https://github.com/eliranbt-commits/gitops-sample-nodejs) (Argo CD). It also mirrors `appVersion` / `image.tag` / `package.json` **in this repo** with `[skip ci]` so developers can see the current tag without opening Argo CD. That mirror is not what the cluster follows.
 
 ```mermaid
 flowchart LR
@@ -72,7 +72,7 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 | Repo scan | Trivy filesystem | Fail on unfixed CRITICAL |
 | Image scan | Trivy | Fail on unfixed HIGH/CRITICAL — **blocks deploy/push** |
 | Build / push | Docker Buildx | Private Docker Hub |
-| Deploy | Git commit of image tag in **gitops-sample-nodejs** | ArgoCD, not kubectl from CI |
+| Deploy | Git commit of image tag in **gitops-sample-nodejs** (Argo) and a `[skip ci]` mirror here | ArgoCD, not kubectl from CI |
 
 Unfixed OS findings are ignored (`ignore-unfixed: true`) so the gate tracks issues we can actually patch.
 
