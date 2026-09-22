@@ -15,20 +15,9 @@ permissions:
   pull-requests: read
   security-events: write
 
-# GitHub also skips the whole workflow when the commit message contains [skip ci]
-# (platform behavior, before a runner starts). The "proceed" job is that same
-# rule in YAML so it is visible in this file.
 jobs:
-  proceed:
-    name: Check skip ci
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Commit message did not request [skip ci]; CI will run."
-
   sast:
     name: SAST and lint
-    needs: [proceed]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -84,7 +73,6 @@ jobs:
 
   version:
     name: Resolve version
-    needs: [proceed]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
